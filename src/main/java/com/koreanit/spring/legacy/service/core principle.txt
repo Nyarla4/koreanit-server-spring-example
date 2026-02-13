@@ -1,0 +1,1 @@
+Service는 HTTP를 모른다. Request/Response, URL, Controller 애너테이션을 사용하지 않는다. 순수한 자바 로직만 가진다.

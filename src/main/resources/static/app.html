@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API 테스트 페이지</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Vue.js CDN -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        .toast-enter-active, .toast-leave-active {
+            transition: opacity 0.5s, transform 0.5s;
+        }
+        .toast-enter-from, .toast-leave-to {
+            opacity: 0;
+            transform: translateY(-20px);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-8">
+    <div id="app" class="bg-white p-8 rounded-lg shadow-md max-w-4xl mx-auto space-y-8">
+        <h1 class="text-4xl font-bold mb-8 text-center text-gray-800">Spring Boot API 테스트</h1>
+
+        <!-- 토스트 메시지 컨테이너 -->
+        <TransitionGroup name="toast" tag="div" class="fixed top-5 left-1/2 -translate-x-1/2 z-50 space-y-2 w-full max-w-sm">
+            <div v-for="t in toasts" :key="t.id"
+                 :class="[
+                    'p-3 rounded-md shadow-lg text-sm font-medium',
+                    t.type === 'success' ? 'bg-green-500 text-white' :
+                    t.type === 'error' ? 'bg-red-500 text-white' :
+                    'bg-gray-700 text-white'
+                 ]">
+                {{ t.message }}
+            </div>
+        </TransitionGroup>
+
+        <!-- 인증 섹션 -->
+        <section class="border-b pb-6 border-gray-200">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">인증</h2>
+            <div v-if="!isLoggedIn" class="space-y-4">
+                <h3 class="text-xl font-medium text-gray-600">로그인</h3>
+                <div class="flex flex-col space-y-2">
+                    <input type="text" v-model="loginForm.username" placeholder="아이디" class="p-2 border rounded-md">
+                    <input type="password" v-model="loginForm.password" placeholder="비밀번호" class="p-2 border rounded-md">
+                    <button @click="login" class="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600">로그인</button>
+                </div>
+                <h3 class="text-xl font-medium text-gray-600 mt-6">회원가입</h3>
+                <div class="flex flex-col space-y-2">
+                    <input type="text" v-model="registerForm.username" placeholder="아이디" class="p-2 border rounded-md">
+                    <input type="password" v-model="registerForm.password" placeholder="비밀번호" class="p-2 border rounded-md">
+                    <input type="text" v-model="registerForm.nickname" placeholder="닉네임" class="p-2 border rounded-md">
+                    <input type="email" v-model="registerForm.email" placeholder="이메일" class="p-2 border rounded-md">
+                    <button @click="registerUser" class="px-4 py-2 bg-indigo-500 text-white rounded-md hover:bg-indigo-600">회원가입</button>
+                </div>
+            </div>
+            <div v-else class="space-y-4">
+                <p class="text-lg text-gray-700">환영합니다, <span class="font-bold">{{ currentUser.nickname || currentUser.username }}</span>님!</p>
+                <button @click="fetchMe" class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600">내 정보 새로고침</button>
+                <button @click="logout" class="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 ml-2">로그아웃</button>
+            </div>
+        </section>
+
+        <!-- 게시물 섹션 -->
+        <section class="border-b pb-6 border-gray-200">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">게시물</h2>
+            <div class="space-y-4">
+                <!-- 게시물 생성 -->
+                <h3 class="text-xl font-medium text-gray-600">게시물 생성</h3>
+                <div class="flex flex-col space-y-2">
+                    <input type="text" v-model="postForm.title" placeholder="제목" class="p-2 border rounded-md">
+                    <textarea v-model="postForm.content" placeholder="내용" rows="3" class="p-2 border rounded-md"></textarea>
+                    <button @click="createPost" class="px-4 py-2 bg-purple-500 text-white rounded-md hover:bg-purple-600">게시물 생성</button>
+                </div>
+
+                <!-- 게시물 목록 -->
+                <h3 class="text-xl font-medium text-gray-600 mt-6">게시물 목록</h3>
+                <div class="space-y-2">
+                    <div v-for="post in posts" :key="post.id"
+                         class="p-3 border border-gray-200 rounded-md bg-white flex justify-between items-center">
+                        <div>
+                            <p class="text-lg font-semibold text-blue-600">{{ post.title }}</p>
+                            <p class="text-gray-600 text-sm">작성자: {{ post.creatorId }} | 작성일: {{ new Date(post.createdAt).toLocaleString() }}</p>
+                        </div>
+                        <div class="space-x-2">
+                            <button @click="selectPostForEdit(post)" class="px-3 py-1 bg-yellow-500 text-white text-sm rounded-md hover:bg-yellow-600">수정</button>
+                            <button @click="deletePost(post.id)" class="px-3 py-1 bg-red-500 text-white text-sm rounded-md hover:bg-red-600">삭제</button>
+                            <button @click="fetchPostDetail(post.id)" class="px-3 py-1 bg-gray-500 text-white text-sm rounded-md hover:bg-gray-600">상세 보기</button>
+                        </div>
+                    </div>
+                    <p v-if="posts.length === 0" class="text-center text-gray-500">게시물이 없습니다.</p>
+                </div>
+                <button @click="fetchPosts" class="px-4 py-2 bg-teal-500 text-white rounded-md hover:bg-teal-600 mt-4">게시물 목록 새로고침</button>
+            </div>
+
+            <!-- 게시물 상세/수정 모달 -->
+            <div v-if="selectedPost" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+                <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg space-y-4">
+                    <h3 class="text-xl font-bold text-gray-800">{{ isEditingPost ? '게시물 수정' : '게시물 상세' }}</h3>
+                    <div v-if="!isEditingPost">
+                        <p class="text-lg font-semibold">{{ selectedPost.title }}</p>
+                        <p class="text-gray-700 mt-2">{{ selectedPost.content }}</p>
+                        <p class="text-gray-600 text-sm mt-4">작성자: {{ selectedPost.creatorId }} | 작성일: {{ new Date(selectedPost.createdAt).toLocaleString() }}</p>
+                    </div>
+                    <div v-else class="flex flex-col space-y-2">
+                        <input type="text" v-model="editPostForm.title" class="p-2 border rounded-md">
+                        <textarea v-model="editPostForm.content" rows="4" class="p-2 border rounded-md"></textarea>
+                        <button @click="updatePost" class="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600">수정 완료</button>
+                    </div>
+                    <div class="flex justify-end space-x-2">
+                        <button v-if="!isEditingPost" @click="isEditingPost = true" class="px-4 py-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600">수정 모드</button>
+                        <button @click="closePostDetail" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600">닫기</button>
+                    </div>
+
+                    <!-- 댓글 목록 -->
+                    <h4 class="text-lg font-semibold mt-6">댓글</h4>
+                    <div class="space-y-2">
+                        <div v-for="comment in commentsForPost" :key="comment.id" class="p-2 border rounded-md bg-gray-50 flex justify-between items-center">
+                            <p class="text-gray-700 text-sm">{{ comment.content }} <span class="text-xs text-gray-500">by {{ comment.creatorId }}</span></p>
+                            <button @click="deleteComment(comment.id)" class="px-2 py-1 bg-red-400 text-white text-xs rounded-md hover:bg-red-500">삭제</button>
+                        </div>
+                        <p v-if="commentsForPost.length === 0" class="text-center text-gray-500 text-sm">댓글이 없습니다.</p>
+                    </div>
+
+                    <!-- 댓글 작성 -->
+                    <div class="mt-4 flex space-x-2">
+                        <input type="text" v-model="commentForm.content" placeholder="댓글 작성..." class="flex-grow p-2 border rounded-md">
+                        <button @click="createComment" class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600">작성</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 헬스 체크 섹션 -->
+        <section>
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">헬스 체크</h2>
+            <div class="flex space-x-4">
+                <button @click="checkHealth" class="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-800">서버 헬스 체크</button>
+                <input type="text" v-model="healthCheckForm.name" placeholder="이름 (필수)" class="p-2 border rounded-md">
+                <input type="number" v-model.number="healthCheckForm.count" placeholder="카운트 (선택)" class="p-2 border rounded-md">
+                <button @click="checkHealthParams" class="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-800">파라미터 헬스 체크</button>
+            </div>
+            <p v-if="healthStatus" class="mt-4 text-gray-800">헬스 상태: {{ healthStatus }}</p>
+        </section>
+
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted } = Vue;
+
+        createApp({
+            setup() {
+                // 인증 상태
+                const isLoggedIn = ref(false);
+                const currentUser = ref(null);
+                const loginForm = ref({ username: '', password: '' });
+                const registerForm = ref({ username: '', password: '', nickname: '', email: '' });
+
+                // 게시물 상태
+                const posts = ref([]);
+                const selectedPost = ref(null); // 상세 보기/수정 시 선택된 게시물
+                const isEditingPost = ref(false); // 게시물 수정 모드 여부
+                const postForm = ref({ title: '', content: '' }); // 게시물 생성 폼
+                const editPostForm = ref({ id: null, title: '', content: '' }); // 게시물 수정 폼
+
+                // 댓글 상태
+                const commentsForPost = ref([]);
+                const commentForm = ref({ content: '' });
+
+                // 헬스 체크 상태
+                const healthStatus = ref('');
+                const healthCheckForm = ref({ name: '', count: 0 });
+
+                // 토스트 메시지
+                const toasts = ref([]);
+                let toastId = 0;
+
+                const showMessage = (msg, type = 'info') => {
+                    const id = toastId++;
+                    toasts.value.push({ id, message: msg, type });
+                    setTimeout(() => {
+                        toasts.value = toasts.value.filter(t => t.id !== id);
+                    }, 3000); // 3초 후 사라짐
+                };
+
+                // API 응답 처리 공통 함수
+                const handleApiResponse = async (response) => {
+                    if (!response.ok) {
+                        let errorMessage = `API 오류: ${response.status} ${response.statusText}`;
+                        try {
+                            const errorData = await response.json();
+                            if (errorData.message) {
+                                errorMessage = `API 오류 (${response.status}): ${errorData.message}`;
+                            } else if (errorData.error) {
+                                errorMessage = `API 오류 (${response.status}): ${errorData.error}`;
+                            }
+                        } catch (e) {
+                            // JSON 파싱 실패 시 기본 메시지 사용
+                        }
+
+                        // 특정 상태 코드에 대한 사용자 친화적인 메시지
+                        if (response.status === 401) {
+                            errorMessage = '인증되지 않았습니다. 로그인해주세요.';
+                        } else if (response.status === 403) {
+                            errorMessage = '접근 권한이 없습니다.';
+                        } else if (response.status === 404) {
+                            errorMessage = '요청한 리소스를 찾을 수 없습니다.';
+                        }
+                        throw new Error(errorMessage);
+                    }
+                    return response.json();
+                };
+
+                // --- 인증 API 호출 ---
+                const login = async () => {
+                    try {
+                        const response = await fetch('/api/login', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(loginForm.value)
+                        });
+                        const data = await handleApiResponse(response);
+                        if (data.success) {
+                            showMessage('로그인 성공!', 'success');
+                            isLoggedIn.value = true;
+                            await fetchMe(); // 로그인 후 사용자 정보 가져오기
+                            loginForm.value = { username: '', password: '' }; // 폼 초기화
+                            fetchPosts(); // 로그인 후 게시물 목록 새로고침
+                        } else {
+                            showMessage(`로그인 실패: ${data.message || '알 수 없는 오류'}`, 'error');
+                        }
+                    } catch (error) {
+                        console.error('Login error:', error);
+                        showMessage(error.message || '로그인 중 오류 발생', 'error');
+                    }
+                };
+
+                const logout = async () => {
+                    try {
+                        const response = await fetch('/api/logout', { method: 'POST' });
+                        const data = await handleApiResponse(response);
+                        if (data.success) {
+                            showMessage('로그아웃 성공!', 'success');
+                            isLoggedIn.value = false;
+                            currentUser.value = null;
+                            posts.value = []; // 로그아웃 시 게시물 목록 초기화 (필요에 따라)
+                            selectedPost.value = null;
+                        }
+                    } catch (error) {
+                        console.error('Logout error:', error);
+                        showMessage(error.message || '로그아웃 중 오류 발생', 'error');
+                    }
+                };
+
+                const fetchMe = async () => {
+                    try {
+                        const response = await fetch('/api/me');
+                        const data = await handleApiResponse(response);
+                        if (data.success) {
+                            currentUser.value = data.data;
+                            isLoggedIn.value = true;
+                        } else {
+                            currentUser.value = null;
+                            isLoggedIn.value = false;
+                            console.warn('Current user not found or not logged in.');
+                        }
+                    } catch (error) {
+                        console.error('Fetch /api/me error:', error);
+                        currentUser.value = null;
+                        isLoggedIn.value = false;
+                    }
+                };
+
+                const registerUser = async () => {
+                    try {
+                        const response = await fetch('/api/users', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(registerForm.value)
+                        });
+                        const data = await handleApiResponse(response);
+                        if (data.success) {
+                            showMessage('회원가입 성공! 로그인해주세요.', 'success');
+                            registerForm.value = { username: '', password: '', nickname: '', email: '' };
+                        }
+                    } catch (error) {
+                        console.error('Register user error:', error);
+                        showMessage(error.message || '회원가입 중 오류 발생', 'error');
+                    }
+                };
+
+                // --- 게시물 API 호출 ---
+                const fetchPosts = async () => {
+                    try {
+                        const response = await fetch('/api/posts');
+                        const data = await handleApiResponse(response);
+                        if (data.success) {
+                            posts.value = data.data;
+                        }
+                    } catch (error) {
+                        console.error('Error fetching posts:', error);
+                        showMessage(error.message || '게시물 목록 조회 중 오류 발생', 'error');
+                    }
+                };
+
+                const fetchPostDetail = async (id) => {
+                    try {
+                        const response = await fetch(`/api/posts/${id}`);
+                        const data = await handleApiResponse(response);
+                        if (data.success) {
+                            selectedPost.value = data.data;
+                            isEditingPost.value = false; // 상세 보기 모드로 시작
+                            await fetchCommentsForPost(id); // 게시물 상세 로드 시 댓글도 로드
+                        }
+                    } catch (error) {
+                        console.error('Error fetching post detail:', error);
+                        showMessage(error.message || '게시물 상세 조회 중 오류 발생', 'error');
+                    }
+                };
+
+                const closePostDetail = () => {
+                    selectedPost.value = null;
+                    isEditingPost.value = false;
+                    commentsForPost.value = [];
+                    commentForm.value.content = '';
+                };
+
+                const selectPostForEdit = (post) => {
+                    selectedPost.value = { ...post }; // 복사하여 원본 데이터 오염 방지
+                    editPostForm.value = { ...post };
+                    isEditingPost.value = true;
+                };
+
+                const createPost = async () => {
+                    if (!isLoggedIn.value) {
+                        showMessage('로그인 후 이용해주세요.', 'error');
+                        return;
+                    }
+                    try {
+                        const response = await fetch('/api/posts', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(postForm.value)
+                        });
+                        const data = await handleApiResponse(response);
+                        if (data.success) {
+                            showMessage('게시물이 성공적으로 생성되었습니다.', 'success');
+                            postForm.value = { title: '', content: '' };
+                            fetchPosts(); // 목록 새로고침
+                        }
+                    } catch (error) {
+                        console.error('Error creating post:', error);
+                        showMessage(error.message || '게시물 생성 중 오류 발생', 'error');
+                    }
+                };
+
+                const updatePost = async () => {
+                    if (!isLoggedIn.value) {
+                        showMessage('로그인 후 이용해주세요.', 'error');
+                        return;
+                    }
+                    try {
+                        const response = await fetch(`/api/posts/${editPostForm.value.id}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ title: editPostForm.value.title, content: editPostForm.value.content })
+                        });
+                        const data = await handleApiResponse(response);
+                        if (data.success) {
+                            showMessage('게시물이 성공적으로 수정되었습니다.', 'success');
+                            selectedPost.value = null; // 수정 후 상세 보기 닫기
+                            isEditingPost.value = false;
+                            fetchPosts(); // 목록 새로고침
+                        }
+                    } catch (error) {
+                        console.error('Error updating post:', error);
+                        showMessage(error.message || '게시물 수정 중 오류 발생', 'error');
+                    }
+                };
+
+                const deletePost = async (id) => {
+                    if (!isLoggedIn.value) {
+                        showMessage('로그인 후 이용해주세요.', 'error');
+                        return;
+                    }
+                    if (!confirm('정말로 이 게시물을 삭제하시겠습니까?')) return;
+                    try {
+                        const response = await fetch(`/api/posts/${id}`, { method: 'DELETE' });
+                        const data = await handleApiResponse(response);
+                        if (data.success) {
+                            showMessage('게시물이 성공적으로 삭제되었습니다.', 'success');
+                            fetchPosts(); // 목록 새로고침
+                        }
+                    } catch (error) {
+                        console.error('Error deleting post:', error);
+                        showMessage(error.message || '게시물 삭제 중 오류 발생', 'error');
+                    }
+                };
+
+                // --- 댓글 API 호출 ---
+                const fetchCommentsForPost = async (postId) => {
+                    try {
+                        const response = await fetch(`/api/posts/${postId}/comments`);
+                        const data = await handleApiResponse(response);
+                        if (data.success) {
+                            commentsForPost.value = data.data;
+                        }
+                    } catch (error) {
+                        console.error('Error fetching comments:', error);
+                        showMessage(error.message || '댓글 목록 조회 중 오류 발생', 'error');
+                    }
+                };
+
+                const createComment = async () => {
+                    if (!isLoggedIn.value || !selectedPost.value) {
+                        showMessage('로그인 후 게시물 상세 화면에서 댓글을 작성해주세요.', 'error');
+                        return;
+                    }
+                    try {
+                        const response = await fetch(`/api/posts/${selectedPost.value.id}/comments`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ content: commentForm.value.content })
+                        });
+                        const data = await handleApiResponse(response);
+                        if (data.success) {
+                            showMessage('댓글이 성공적으로 작성되었습니다.', 'success');
+                            commentForm.value.content = '';
+                            await fetchCommentsForPost(selectedPost.value.id); // 댓글 목록 새로고침
+                        }
+                    } catch (error) {
+                        console.error('Error creating comment:', error);
+                        showMessage(error.message || '댓글 작성 중 오류 발생', 'error');
+                    }
+                };
+
+                const deleteComment = async (commentId) => {
+                    if (!isLoggedIn.value) {
+                        showMessage('로그인 후 이용해주세요.', 'error');
+                        return;
+                    }
+                    if (!confirm('정말로 이 댓글을 삭제하시겠습니까?')) return;
+                    try {
+                        const response = await fetch(`/api/comments/${commentId}`, { method: 'DELETE' });
+                        const data = await handleApiResponse(response);
+                        if (data.success) {
+                            showMessage('댓글이 성공적으로 삭제되었습니다.', 'success');
+                            if (selectedPost.value) {
+                                await fetchCommentsForPost(selectedPost.value.id); // 댓글 목록 새로고침
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error deleting comment:', error);
+                        showMessage(error.message || '댓글 삭제 중 오류 발생', 'error');
+                    }
+                };
+
+                // --- 헬스 체크 API 호출 ---
+                const checkHealth = async () => {
+                    try {
+                        const response = await fetch('/health');
+                        if (!response.ok) throw new Error(`헬스 체크 오류: ${response.status} ${response.statusText}`);
+                        const text = await response.text();
+                        healthStatus.value = `기본 헬스 체크: ${text}`;
+                        showMessage('기본 헬스 체크 성공', 'success');
+                    } catch (error) {
+                        console.error('Error checking health:', error);
+                        healthStatus.value = '기본 헬스 체크 실패';
+                        showMessage(error.message || '기본 헬스 체크 실패', 'error');
+                    }
+                };
+
+                const checkHealthParams = async () => {
+                    if (!healthCheckForm.value.name) {
+                        showMessage('이름을 입력해주세요.', 'error');
+                        return;
+                    }
+                    try {
+                        const response = await fetch(`/health/check?name=${healthCheckForm.value.name}&count=${healthCheckForm.value.count}`);
+                        if (!response.ok) throw new Error(`파라미터 헬스 체크 오류: ${response.status} ${response.statusText}`);
+                        const text = await response.text();
+                        healthStatus.value = `파라미터 헬스 체크: ${text}`;
+                        showMessage('파라미터 헬스 체크 성공', 'success');
+                    } catch (error) {
+                        console.error('Error checking health with params:', error);
+                        healthStatus.value = '파라미터 헬스 체크 실패';
+                        showMessage(error.message || '파라미터 헬스 체크 실패', 'error');
+                    }
+                };
+
+
+                // 초기 로드 시 실행
+                onMounted(async () => {
+                    await fetchMe(); // 페이지 로드 시 로그인 상태 확인
+                    await fetchPosts(); // 게시물 목록 불러오기
+                });
+
+                return {
+                    isLoggedIn,
+                    currentUser,
+                    loginForm,
+                    registerForm,
+                    login,
+                    logout,
+                    fetchMe,
+                    registerUser,
+
+                    posts,
+                    selectedPost,
+                    isEditingPost,
+                    postForm,
+                    editPostForm,
+                    fetchPosts,
+                    fetchPostDetail,
+                    closePostDetail,
+                    selectPostForEdit,
+                    createPost,
+                    updatePost,
+                    deletePost,
+
+                    commentsForPost,
+                    commentForm,
+                    createComment,
+                    deleteComment,
+
+                    healthStatus,
+                    healthCheckForm,
+                    checkHealth,
+                    checkHealthParams,
+
+                    toasts, // 토스트 메시지를 위한 새 속성
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

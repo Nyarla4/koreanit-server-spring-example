@@ -1,0 +1,1030 @@
+<!doctype html>
+<html lang="ko">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Spring Boot API Client (Vue3 CDN)</title>
+
+  <!-- Tailwind (CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Vue 3 (CDN) -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+
+  <!-- Axios (CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/axios@1.6.8/dist/axios.min.js"></script>
+
+  <style>
+    .toast-enter-from {
+      opacity: 0;
+      transform: translateY(-8px) scale(0.96);
+    }
+
+    .toast-enter-to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+
+    .toast-enter-active {
+      transition: all 180ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .toast-leave-from {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    .toast-leave-to {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+
+    .toast-leave-active {
+      transition: all 140ms ease-in;
+    }
+  </style>
+</head>
+
+<body class="bg-slate-50 text-slate-900">
+  <div id="app" class="min-h-screen">
+
+    <!-- Top Bar -->
+    <header class="sticky top-0 z-20 border-b bg-white/80 backdrop-blur">
+      <div class="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
+        <div class="flex items-center gap-2">
+          <div class="h-8 w-8 rounded-xl bg-slate-900"></div>
+          <div class="leading-tight">
+            <div class="text-sm font-semibold">API Test Client</div>
+            <div class="text-xs text-slate-500">Tailwind + Vue3 + Axios (CDN Single HTML)</div>
+          </div>
+        </div>
+
+        <div class="ml-auto flex flex-wrap items-center gap-2">
+          <div class="flex items-center gap-2">
+            <label class="text-xs font-medium text-slate-600">API</label>
+            <input v-model.trim="apiBase"
+              class="w-64 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+              placeholder="http://localhost:8080" />
+          </div>
+
+          <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50"
+            @click="pingMe">
+            /api/me 확인
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Toast Stack -->
+    <transition-group name="toast" tag="div" class="fixed left-1/2 top-4 -translate-x-1/2 z-50
+         w-[min(360px,calc(100vw-2rem))] pointer-events-none">
+      <div v-for="(t, idx) in toasts" :key="t.id" @click="removeToast(t.id)" class="rounded-xl border px-3 py-2 text-sm shadow-lg bg-white/95 backdrop-blur
+               cursor-pointer transition-all pointer-events-auto select-none" :class="[
+          t.type === 'error' ? 'border-red-200' : 'border-emerald-200',
+          idx === 0 ? '' : '-mt-2'
+        ]" :style="{ zIndex: 50 - idx }" title="클릭하면 닫힙니다">
+        <div class="flex items-start gap-3">
+          <div class="shrink-0 font-semibold" :class="t.type === 'error' ? 'text-red-700' : 'text-emerald-700'">
+            {{ t.type === 'error' ? 'Error' : 'OK' }}
+          </div>
+
+          <div class="flex-1 text-slate-800">
+            <pre class="whitespace-pre-wrap text-sm max-h-24 overflow-auto">{{ t.text }}</pre>
+          </div>
+
+          <div class="text-[11px] text-slate-400">click</div>
+        </div>
+      </div>
+    </transition-group>
+
+    <main class="mx-auto grid max-w-6xl grid-cols-12 gap-4 px-4 py-4">
+      <!-- Left -->
+      <section class="col-span-12 lg:col-span-4 space-y-4">
+        <!-- Session Card -->
+        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div class="flex items-center justify-between">
+            <h2 class="text-base font-semibold">세션</h2>
+            <span class="text-xs text-slate-500">{{ apiBase || '(API 미설정)' }}</span>
+          </div>
+
+          <div class="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
+            <div v-if="me" class="space-y-1">
+              <div class="font-semibold">로그인됨</div>
+              <div class="text-slate-700">id: {{ me.id }}</div>
+              <div class="text-slate-700">username: {{ me.username }}</div>
+              <div class="text-slate-700">nickname: {{ me.nickname }}</div>
+              <div class="text-slate-700" v-if="me.email">email: {{ me.email }}</div>
+            </div>
+            <div v-else class="text-slate-600">
+              로그인 상태가 아닙니다.
+            </div>
+          </div>
+
+          <!-- Login -->
+          <div class="mt-4" v-if="!me">
+            <div class="text-sm font-semibold">로그인</div>
+            <div class="mt-2 grid grid-cols-1 gap-2">
+              <div>
+                <label class="mb-1 block text-xs font-medium text-slate-600">아이디 (username)</label>
+                <input v-model.trim="loginForm.username"
+                  class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+                  placeholder="예: test" />
+              </div>
+
+              <div>
+                <label class="mb-1 block text-xs font-medium text-slate-600">비밀번호 (password)</label>
+                <input v-model.trim="loginForm.password" type="password" autocomplete="new-password"
+                  class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+                  placeholder="예: 1234" />
+              </div>
+
+              <button class="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white hover:opacity-90 disabled:opacity-50"
+                :disabled="!canLogin" @click="login">
+                로그인
+              </button>
+            </div>
+          </div>
+
+          <div class="mt-3" v-if="me">
+            <button class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50"
+              @click="logout">
+              로그아웃
+            </button>
+          </div>
+        </div>
+
+        <!-- Signup Card -->
+        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <h2 class="text-base font-semibold">회원가입</h2>
+          <div class="mt-3 grid grid-cols-1 gap-2">
+            <div>
+              <label class="mb-1 block text-xs font-medium text-slate-600">아이디 (username)</label>
+              <input v-model.trim="signupForm.username"
+                class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+                placeholder="예: hong" />
+            </div>
+
+            <div>
+              <label class="mb-1 block text-xs font-medium text-slate-600">비밀번호 (password)</label>
+              <input v-model.trim="signupForm.password" type="password"
+                class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+                placeholder="예: 1234" />
+            </div>
+
+            <div>
+              <label class="mb-1 block text-xs font-medium text-slate-600">닉네임 (nickname)</label>
+              <input v-model.trim="signupForm.nickname"
+                class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+                placeholder="예: 아무개" />
+            </div>
+
+            <div>
+              <label class="mb-1 block text-xs font-medium text-slate-600">이메일 (email, 선택)</label>
+              <input v-model.trim="signupForm.email"
+                class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+                placeholder="예: test@example.com" />
+            </div>
+
+            <button
+              class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
+              :disabled="!canSignup" @click="signup">
+              회원가입
+            </button>
+          </div>
+          <div class="mt-2 text-xs text-slate-500">
+            성공 시 응답 data = userId(Long) 가정
+          </div>
+        </div>
+
+        <!-- Users List -->
+        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div class="flex items-center justify-between">
+            <h2 class="text-base font-semibold">Users</h2>
+            <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50"
+              @click="loadUsers">
+              목록 조회
+            </button>
+          </div>
+
+          <div class="mt-3 max-h-72 overflow-auto rounded-xl border border-slate-200">
+            <table class="w-full text-left text-sm">
+              <thead class="sticky top-0 bg-white">
+                <tr class="border-b">
+                  <th class="px-3 py-2 text-xs font-semibold text-slate-600">id</th>
+                  <th class="px-3 py-2 text-xs font-semibold text-slate-600">username</th>
+                  <th class="px-3 py-2 text-xs font-semibold text-slate-600">nickname</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="u in users" :key="u.id" class="border-b last:border-b-0 hover:bg-slate-50">
+                  <td class="px-3 py-2">{{ u.id }}</td>
+                  <td class="px-3 py-2">{{ u.username }}</td>
+                  <td class="px-3 py-2">{{ u.nickname }}</td>
+                </tr>
+                <tr v-if="users.length === 0">
+                  <td colspan="3" class="px-3 py-4 text-center text-slate-500">데이터 없음</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right -->
+      <section class="col-span-12 lg:col-span-8 space-y-4">
+        <!-- Posts -->
+        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 class="text-base font-semibold">Posts</h2>
+              <div class="text-xs text-slate-500">
+                GET /api/posts?page={{ postQuery.page }}&limit={{ postQuery.limit }}
+              </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+              페이지:
+              <input v-model.number="postQuery.page" type="number" min="1"
+                class="w-24 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+                placeholder="page" />
+              LIMIT:
+              <input v-model.number="postQuery.limit" type="number" min="1" max="1000"
+                class="w-24 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+                placeholder="limit" />
+              <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50"
+                @click="loadPosts">
+                목록 조회
+              </button>
+              <button class="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white hover:opacity-90"
+                @click="openCreatePost()">
+                새 글
+              </button>
+            </div>
+          </div>
+
+          <!-- Create Form -->
+          <div v-if="showPostForm && editor.mode === 'create'" class="mt-4 rounded-xl border border-slate-200 p-3">
+            <div class="flex items-center justify-between">
+              <div class="text-sm font-semibold">글쓰기</div>
+              <div class="flex items-center gap-2">
+                <button class="text-xs text-slate-500 hover:text-slate-700" @click="resetEditor">초기화</button>
+                <button class="text-xs text-slate-500 hover:text-slate-700" @click="showPostForm = false">닫기</button>
+              </div>
+            </div>
+
+            <div class="mt-2 grid grid-cols-1 gap-2">
+              <div>
+                <label class="mb-1 block text-xs font-medium text-slate-600">제목 (title)</label>
+                <input v-model.trim="editor.title"
+                  class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+                  placeholder="제목을 입력" />
+              </div>
+
+              <div>
+                <label class="mb-1 block text-xs font-medium text-slate-600">내용 (content)</label>
+                <textarea v-model.trim="editor.content" rows="6"
+                  class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+                  placeholder="내용을 입력"></textarea>
+              </div>
+
+              <button class="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white hover:opacity-90 disabled:opacity-50"
+                :disabled="!canSubmitPost" @click="submitPost">
+                작성
+              </button>
+
+              <div class="text-xs text-slate-500">
+                POST /api/posts (로그인 필요)
+              </div>
+            </div>
+          </div>
+
+          <!-- Posts Table -->
+          <div class="mt-3 max-h-72 overflow-auto rounded-xl border border-slate-200">
+            <table class="w-full text-left text-sm">
+              <thead class="sticky top-0 bg-white">
+                <tr class="border-b">
+                  <th class="px-3 py-2 text-xs font-semibold text-slate-600">id</th>
+                  <th class="px-3 py-2 text-xs font-semibold text-slate-600">title</th>
+                  <th class="px-3 py-2 text-xs font-semibold text-slate-600">userId</th>
+                  <th class="px-3 py-2 text-xs font-semibold text-slate-600">views</th>
+                  <th class="px-3 py-2 text-xs font-semibold text-slate-600">comments</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="p in posts" :key="p.id" class="border-b last:border-b-0 hover:bg-slate-50 cursor-pointer"
+                  @click="selectPost(p.id)">
+                  <td class="px-3 py-2">{{ p.id }}</td>
+                  <td class="px-3 py-2 line-clamp-1">{{ p.title }}</td>
+                  <td class="px-3 py-2">{{ p.userId }}</td>
+                  <td class="px-3 py-2">{{ p.viewCount }}</td>
+                  <td class="px-3 py-2">{{ p.commentsCnt }}</td>
+                </tr>
+                <tr v-if="posts.length === 0">
+                  <td colspan="5" class="px-3 py-4 text-center text-slate-500">데이터 없음</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Detail + Comments -->
+        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-base font-semibold">상세 · 댓글</h2>
+              <div class="text-xs text-slate-500">
+                Post: GET /api/posts/{id}
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button
+                class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
+                :disabled="!selectedPostId" @click="loadPostDetail">
+                상세 새로고침
+              </button>
+
+              <button
+                class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
+                :disabled="!postDetail" @click="openEditPost">
+                수정
+              </button>
+
+              <button
+                class="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
+                :disabled="!postDetail" @click="deletePost">
+                삭제
+              </button>
+            </div>
+          </div>
+
+          <div class="mt-3" v-if="postDetail">
+            <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div class="text-xs text-slate-500">id: {{ postDetail.id }}</div>
+              <div class="mt-1 text-lg font-semibold">{{ postDetail.title }}</div>
+              <div class="mt-2 whitespace-pre-wrap text-sm text-slate-700">{{ postDetail.content }}</div>
+
+              <div class="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-500">
+                <div>userId: {{ postDetail.userId }}</div>
+                <div>viewCount: {{ postDetail.viewCount }}</div>
+                <div>commentsCnt: {{ postDetail.commentsCnt }}</div>
+                <div v-if="postDetail.createdAt">createdAt: {{ formatDate(postDetail.createdAt) }}</div>
+              </div>
+            </div>
+          </div>
+          <div class="mt-3 text-sm text-slate-500" v-else>
+            게시글을 선택하세요.
+          </div>
+
+          <!-- Edit Form -->
+          <div v-if="showPostForm && editor.mode === 'edit'" class="mt-4 rounded-xl border border-slate-200 p-3">
+            <div class="flex items-center justify-between">
+              <div class="text-sm font-semibold">게시글 수정</div>
+              <div class="flex items-center gap-2">
+                <button class="text-xs text-slate-500 hover:text-slate-700" @click="resetEditor">초기화</button>
+                <button class="text-xs text-slate-500 hover:text-slate-700" @click="showPostForm = false">닫기</button>
+              </div>
+            </div>
+
+            <div class="mt-2 grid grid-cols-1 gap-2">
+              <div>
+                <label class="mb-1 block text-xs font-medium text-slate-600">제목 (title)</label>
+                <input v-model.trim="editor.title"
+                  class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+                  placeholder="제목을 입력" />
+              </div>
+
+              <div>
+                <label class="mb-1 block text-xs font-medium text-slate-600">내용 (content)</label>
+                <textarea v-model.trim="editor.content" rows="6"
+                  class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+                  placeholder="내용을 입력"></textarea>
+              </div>
+
+              <button class="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white hover:opacity-90 disabled:opacity-50"
+                :disabled="!canSubmitPost" @click="submitPost">
+                수정 반영
+              </button>
+
+              <div class="text-xs text-slate-500">
+                PUT /api/posts/{id} (로그인 필요)
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-5 border-t border-slate-200"></div>
+
+          <!-- Comments Controls -->
+          <div class="mt-4 flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <h3 class="text-sm font-semibold">댓글</h3>
+              <span class="text-xs text-slate-500">DELETE /api/comments/{id} (로그인 필요)</span>
+            </div>
+
+            <div class="flex items-center gap-2">
+              LIMIT: <input v-model.number="commentsQuery.limit" type="number" min="1" max="1000"
+                class="w-24 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+                placeholder="limit" />
+
+              <button
+                class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
+                :disabled="!postDetail" @click="reloadComments">
+                새로고침
+              </button>
+
+              <button v-if="postDetail" class="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white hover:opacity-90"
+                @click="showCommentForm = !showCommentForm">
+                댓글 작성
+              </button>
+            </div>
+          </div>
+
+          <!-- Comment Create -->
+          <div v-if="showCommentForm" class="mt-3 rounded-xl border border-slate-200 p-3">
+            <div class="text-sm font-semibold">댓글 작성</div>
+            <div class="mt-2 grid grid-cols-1 gap-2">
+              <div>
+                <label class="mb-1 block text-xs font-medium text-slate-600">내용 (content)</label>
+                <textarea v-model.trim="commentForm.content" rows="3"
+                  class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400"
+                  placeholder="댓글 내용을 입력"></textarea>
+              </div>
+
+              <button class="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white hover:opacity-90 disabled:opacity-50"
+                :disabled="!canCreateComment" @click="createComment">
+                작성
+              </button>
+              <div class="text-xs text-slate-500">
+                POST /api/posts/{postId}/comments (로그인 필요)
+              </div>
+            </div>
+          </div>
+
+          <!-- Comment List -->
+          <div class="mt-3">
+            <div class="flex items-center justify-between">
+              <div class="text-sm font-semibold">목록 <span class="text-xs text-slate-500 font-normal">Comments: GET
+                  /api/posts/{postId}/comments?before={id}&limit={{commentsQuery.limit }}</span></div>
+              <button
+                class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
+                :disabled="!postDetail || !comments.hasMore || comments.loading" @click="loadMoreComments(false)">
+                더보기
+              </button>
+            </div>
+
+            <div class="mt-2 max-h-[520px] overflow-auto space-y-2">
+              <div v-for="c in comments.items" :key="c.id" class="rounded-xl border border-slate-200 bg-white p-3">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <div class="text-xs text-slate-500">
+                      id: {{ c.id }} · postId: {{ c.postId }} · userId: {{ c.userId }}
+                      <span v-if="c.createdAt"> · {{ formatDate(c.createdAt) }}</span>
+                    </div>
+                    <div class="mt-1 whitespace-pre-wrap text-sm text-slate-800">{{ c.content }}</div>
+                  </div>
+                  <button
+                    class="shrink-0 rounded-lg border border-red-200 bg-white px-2 py-1 text-xs text-red-700 hover:bg-red-50"
+                    @click="deleteComment(c.id)">
+                    삭제
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="comments.items.length === 0"
+                class="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-500">
+                댓글이 없습니다.
+              </div>
+
+              <div v-if="comments.loading" class="text-center text-xs text-slate-500">
+                로딩중...
+              </div>
+
+              <div v-if="postDetail && !comments.hasMore && comments.items.length > 0"
+                class="text-center text-xs text-slate-500">
+                더 이상 없습니다.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="mx-auto max-w-6xl px-4 pb-10 text-xs text-slate-400">
+      - ApiResponse.fail(...)의 message/code는 최상위 필드로 처리합니다.<br>
+      - 네트워크 오류(응답 없음)는 axios error.message로 처리합니다.<br>
+      - 토스트는 최대 3개까지 표시되며, 클릭하면 닫힙니다.
+    </footer>
+  </div>
+
+  <script>
+    const { createApp, ref, reactive, computed, watch, onMounted } = Vue;
+
+    createApp({
+      setup() {
+        // ---------------------------
+        // state
+        // ---------------------------
+        const apiBase = ref('http://localhost:8080');
+
+        const toasts = ref([]);
+        const toastSeq = ref(1);
+
+        const me = ref(null);
+
+        const loginForm = reactive({ username: '', password: '' });
+        const signupForm = reactive({ username: '', password: '', nickname: '', email: '' });
+
+        const users = ref([]);
+
+        const postQuery = reactive({ page: 1, limit: 10 });
+        const posts = ref([]);
+        const selectedPostId = ref(null);
+        const postDetail = ref(null);
+
+        const editor = reactive({ mode: 'create', id: null, title: '', content: '' });
+        const showPostForm = ref(false);
+        const showCommentForm = ref(false);
+
+        const commentsQuery = reactive({ limit: 10 });
+        const commentForm = reactive({ content: '' });
+        const comments = reactive({
+          items: [],
+          loading: false,
+          hasMore: true,
+          before: null,
+        });
+
+        // ---------------------------
+        // computed
+        // ---------------------------
+        const canLogin = computed(() => loginForm.username.length > 0 && loginForm.password.length > 0);
+
+        const canSignup = computed(() =>
+          signupForm.username.length > 0 &&
+          signupForm.password.length > 0 &&
+          signupForm.nickname.length > 0
+        );
+
+        const canSubmitPost = computed(() => {
+          const ok = editor.title.trim().length > 0 && editor.content.trim().length > 0;
+          if (!ok) return false;
+          if (editor.mode === 'edit') return !!editor.id;
+          return true;
+        });
+
+        const canCreateComment = computed(() => !!postDetail.value && commentForm.content.trim().length > 0);
+
+        // ---------------------------
+        // helpers
+        // ---------------------------
+        function pushToast(type, text) {
+          const id = toastSeq.value++;
+          toasts.value.unshift({ id, type, text });
+          if (toasts.value.length > 3) toasts.value.splice(3);
+
+          const ms = (type === 'error') ? 6500 : 3500;
+          window.setTimeout(() => removeToast(id), ms);
+        }
+
+        function removeToast(id) {
+          const idx = toasts.value.findIndex(t => t.id === id);
+          if (idx >= 0) toasts.value.splice(idx, 1);
+        }
+
+        async function request(config) {
+          const silent = config.silent === true;
+
+          if (!apiBase.value) {
+            if (!silent) pushToast('error', 'API 주소를 입력하세요.');
+            throw new Error('API base missing');
+          }
+
+          axios.defaults.withCredentials = true;
+          const url = apiBase.value.replace(/\/+$/, '') + config.url;
+
+          try {
+            const res = await axios({
+              method: config.method || 'GET',
+              url,
+              data: config.data,
+              params: config.params,
+              headers: config.headers,
+            });
+
+            const body = res.data;
+
+            if (body && body.success === false) {
+              if (!silent) {
+                const msg = body.message ?? '요청 실패';
+                const code = body.code ?? '';
+                pushToast('error', code ? `${msg}\ncode=${code}` : msg);
+              }
+              throw new Error('ApiResponse fail');
+            }
+
+            return body;
+          } catch (e) {
+            if (!silent) {
+              if (!e.response) {
+                pushToast('error', e?.message || '네트워크 오류');
+              } else {
+                const data = e.response?.data;
+                if (data?.success === false) {
+                  const msg = data.message ?? '요청 실패';
+                  const code = data.code ?? '';
+                  pushToast('error', code ? `${msg}\ncode=${code}` : msg);
+                } else {
+                  pushToast('error', `HTTP ${e.response.status} 오류`);
+                }
+              }
+            }
+            throw e;
+          }
+        }
+
+        function formatDate(v) {
+          if (!v) return '';
+          return v.replace('T', ' ');
+        }
+
+        function syncPostRowFromDetail() {
+          if (!postDetail.value) return;
+          const idx = posts.value.findIndex(p => p.id === postDetail.value.id);
+          if (idx < 0) return;
+
+          posts.value[idx] = {
+            ...posts.value[idx],
+            commentsCnt: postDetail.value.commentsCnt,
+            viewCount: postDetail.value.viewCount,
+            title: postDetail.value.title,
+            userId: postDetail.value.userId,
+          };
+        }
+
+        // ---------------------------
+        // api methods
+        // ---------------------------
+        async function pingMe({ silent = false } = {}) {
+          try {
+            const body = await request({
+              url: '/api/me',
+              method: 'GET',
+              silent,
+            });
+            me.value = body.data || null;
+
+            if (!silent) {
+              pushToast('ok', me.value ? '세션 확인: 로그인됨' : '세션 확인: 비로그인');
+            }
+          } catch (_) {
+            if (!silent) pushToast('error', '세션 확인 실패');
+          }
+        }
+
+        async function login() {
+          try {
+            const body = await request({
+              url: '/api/login',
+              method: 'POST',
+              data: {
+                username: loginForm.username,
+                password: loginForm.password,
+              }
+            });
+
+            const data = body?.data;
+            pushToast('ok', (typeof data === 'number') ? `로그인 성공 (userId=${data})` : '로그인 성공');
+
+            loginForm.username = '';
+            loginForm.password = '';
+
+            await pingMe();
+          } catch (_) { }
+        }
+
+        async function logout() {
+          try {
+            await request({ url: '/api/logout', method: 'POST' });
+            me.value = null;
+            loginForm.username = '';
+            loginForm.password = '';
+            pushToast('ok', '로그아웃 완료');
+          } catch (_) { }
+        }
+
+        async function signup() {
+          try {
+            const payload = {
+              username: signupForm.username,
+              password: signupForm.password,
+              nickname: signupForm.nickname,
+            };
+            if (signupForm.email && signupForm.email.trim().length > 0) {
+              payload.email = signupForm.email.trim();
+            }
+
+            const body = await request({
+              url: '/api/users',
+              method: 'POST',
+              data: payload
+            });
+
+            const userId = body?.data;
+            pushToast('ok', `회원가입 성공 (userId=${userId})`);
+
+            signupForm.username = '';
+            signupForm.password = '';
+            signupForm.nickname = '';
+            signupForm.email = '';
+          } catch (_) { }
+        }
+
+        async function loadUsers() {
+          try {
+            const body = await request({
+              url: '/api/users',
+              method: 'GET',
+              params: { limit: 1000 }
+            });
+            users.value = body.data || [];
+            pushToast('ok', `Users ${users.value.length}건`);
+          } catch (_) { }
+        }
+
+        async function loadPosts({ silent = false } = {}) {
+          try {
+            const body = await request({
+              url: '/api/posts',
+              method: 'GET',
+              params: {
+                page: postQuery.page,
+                limit: postQuery.limit,
+              },
+              silent,
+            });
+            posts.value = body.data || [];
+            if (!silent) pushToast('ok', `Posts ${posts.value.length}건`);
+          } catch (_) { }
+        }
+
+        async function selectPost(id) {
+          selectedPostId.value = id;
+          showPostForm.value = false;
+          showCommentForm.value = false;
+
+          await loadPostDetail();
+          await reloadComments();
+        }
+
+        async function loadPostDetail() {
+          if (!selectedPostId.value) return;
+          try {
+            const body = await request({
+              url: `/api/posts/${selectedPostId.value}`,
+              method: 'GET'
+            });
+            postDetail.value = body.data || null;
+            if (postDetail.value) pushToast('ok', `상세 로드: postId=${postDetail.value.id}`);
+
+            syncPostRowFromDetail();
+          } catch (_) { }
+        }
+
+        function openCreatePost() {
+          editor.mode = 'create';
+          editor.id = null;
+          editor.title = '';
+          editor.content = '';
+          showPostForm.value = true;
+          pushToast('ok', '글쓰기 모드');
+        }
+
+        function openEditPost() {
+          if (!postDetail.value) return;
+          editor.mode = 'edit';
+          editor.id = postDetail.value.id;
+          editor.title = postDetail.value.title || '';
+          editor.content = postDetail.value.content || '';
+          showPostForm.value = true;
+          pushToast('ok', `수정 모드: postId=${editor.id}`);
+        }
+
+        function resetEditor() {
+          if (editor.mode === 'edit' && postDetail.value) {
+            openEditPost();
+            return;
+          }
+          openCreatePost();
+        }
+
+        async function submitPost() {
+          try {
+            if (editor.mode === 'create') {
+              const body = await request({
+                url: '/api/posts',
+                method: 'POST',
+                data: { title: editor.title, content: editor.content }
+              });
+              const created = body.data;
+              showPostForm.value = false;
+              pushToast('ok', `작성 완료 (postId=${created?.id ?? '?'})`);
+              await loadPosts();
+              if (created?.id) await selectPost(created.id);
+            } else {
+              const body = await request({
+                url: `/api/posts/${editor.id}`,
+                method: 'PUT',
+                data: { title: editor.title, content: editor.content }
+              });
+              const updated = body.data;
+              showPostForm.value = false;
+              pushToast('ok', `수정 완료 (postId=${updated?.id ?? editor.id})`);
+              await loadPosts();
+              await selectPost(editor.id);
+            }
+          } catch (_) { }
+        }
+
+        async function deletePost() {
+          if (!postDetail.value) return;
+          const id = postDetail.value.id;
+          const ok = window.confirm(`게시글 삭제? id=${id}`);
+          if (!ok) return;
+
+          try {
+            await request({ url: `/api/posts/${id}`, method: 'DELETE' });
+            pushToast('ok', `삭제 완료 (postId=${id})`);
+
+            postDetail.value = null;
+            selectedPostId.value = null;
+
+            comments.items = [];
+            comments.before = null;
+            comments.hasMore = true;
+
+            showCommentForm.value = false;
+            showPostForm.value = false;
+
+            await loadPosts();
+          } catch (_) { }
+        }
+
+        async function reloadComments() {
+          if (!postDetail.value) return;
+          comments.items = [];
+          comments.before = null;
+          comments.hasMore = true;
+          await loadMoreComments(true);
+        }
+
+        async function loadMoreComments(reset = false) {
+          if (!postDetail.value) return;
+          if (comments.loading) return;
+          if (!comments.hasMore && !reset) return;
+
+          comments.loading = true;
+          try {
+            const params = { limit: commentsQuery.limit };
+            if (!reset && comments.before) params.before = comments.before;
+
+            const body = await request({
+              url: `/api/posts/${postDetail.value.id}/comments`,
+              method: 'GET',
+              params
+            });
+
+            const list = body.data || [];
+            comments.items = reset ? list : comments.items.concat(list);
+
+            if (comments.items.length > 0) {
+              const last = comments.items[comments.items.length - 1];
+              comments.before = last.id;
+            }
+
+            comments.hasMore = list.length === commentsQuery.limit;
+            pushToast('ok', reset ? `댓글 로드 ${list.length}건` : `댓글 추가 ${list.length}건`);
+          } catch (_) {
+          } finally {
+            comments.loading = false;
+          }
+        }
+
+        async function createComment() {
+          if (!postDetail.value) return;
+          try {
+            const body = await request({
+              url: `/api/posts/${postDetail.value.id}/comments`,
+              method: 'POST',
+              data: { content: commentForm.content }
+            });
+            const created = body.data;
+            pushToast('ok', `댓글 작성 완료 (id=${created?.id ?? '?'})`);
+            commentForm.content = '';
+            showCommentForm.value = false;
+            await reloadComments();
+            await loadPostDetail();
+            syncPostRowFromDetail();
+          } catch (_) { }
+        }
+
+        async function deleteComment(id) {
+          const ok = window.confirm(`댓글 삭제? id=${id}`);
+          if (!ok) return;
+
+          try {
+            await request({ url: `/api/comments/${id}`, method: 'DELETE' });
+            pushToast('ok', `댓글 삭제 완료 (id=${id})`);
+            await reloadComments();
+            await loadPostDetail();
+            syncPostRowFromDetail();
+          } catch (_) { }
+        }
+
+        // ---------------------------
+        // watchers (Composition)
+        // ---------------------------
+        watch(() => postQuery.page, (n) => {
+          if (!Number.isFinite(n) || n <= 0) postQuery.page = 1;
+          loadPosts();
+        });
+
+        watch(() => postQuery.limit, (n) => {
+          if (!Number.isFinite(n) || n <= 0) postQuery.limit = 10;
+          if (n > 1000) postQuery.limit = 1000;
+          postQuery.page = 1;
+          loadPosts();
+        });
+
+        watch(() => commentsQuery.limit, (n) => {
+          if (!Number.isFinite(n) || n <= 0) commentsQuery.limit = 10;
+          if (n > 1000) commentsQuery.limit = 1000;
+
+          if (postDetail.value) reloadComments();
+        });
+
+        // ---------------------------
+        // lifecycle
+        // ---------------------------
+        onMounted(async () => {
+          try { await pingMe({ silent: true }); } catch (_) { }
+          try { await loadPosts({ silent: true }); } catch (_) { }
+        });
+
+        // expose to template
+        return {
+          apiBase,
+          toasts,
+          removeToast,
+
+          me,
+          loginForm,
+          signupForm,
+          users,
+
+          postQuery,
+          posts,
+          selectedPostId,
+          postDetail,
+
+          editor,
+          showPostForm,
+          showCommentForm,
+
+          commentsQuery,
+          commentForm,
+          comments,
+
+          canLogin,
+          canSignup,
+          canSubmitPost,
+          canCreateComment,
+
+          pingMe,
+          login,
+          logout,
+          signup,
+          loadUsers,
+          loadPosts,
+          selectPost,
+          loadPostDetail,
+          openCreatePost,
+          openEditPost,
+          resetEditor,
+          submitPost,
+          deletePost,
+          reloadComments,
+          loadMoreComments,
+          createComment,
+          deleteComment,
+
+          formatDate,
+          syncPostRowFromDetail,
+          pushToast,
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+
+</html>

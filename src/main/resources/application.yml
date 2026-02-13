@@ -1,0 +1,12 @@
+spring:
+  forward-headers-strategy: framework
+
+  profiles:
+    default: dev
+    # SPRING_PROFILES_ACTIVE 환경변수에 따라 dev/prod 등으로 분리
+    # export SPRING_PROFILES_ACTIVE=dev 등으로 값 처리
+    # echo $SPRING_PROFILES_ACTIVE 으로 현재 값 확인
+
+logging:
+  level:
+    root: INFO
